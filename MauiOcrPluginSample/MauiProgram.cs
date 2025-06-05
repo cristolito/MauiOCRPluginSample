@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using Camera.MAUI;
 using Plugin.Maui.OCR;
 
 namespace MauiOcrPluginSample
@@ -11,6 +11,7 @@ namespace MauiOcrPluginSample
             builder
                 .UseMauiApp<App>()
                 .UseOcr()
+                .UseMauiCameraView()
                 .ConfigureFonts(fonts =>
                 {
                     fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
@@ -19,10 +20,6 @@ namespace MauiOcrPluginSample
 
             // Use with dependency injection
             // builder.Services.AddSingleton<IOcrService>(OcrPlugin.Default);
-
-#if DEBUG
-    		builder.Logging.AddDebug();
-#endif
 
             return builder.Build();
         }

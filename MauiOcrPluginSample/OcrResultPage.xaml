@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="MauiOcrPluginSample.OcrResultPage"
+             Title="Resultados OCR">
+
+    <ScrollView>
+        <VerticalStackLayout Spacing="20" Padding="20">
+
+            <!-- Imagen capturada -->
+            <Image x:Name="capturedImage"
+                   HeightRequest="300"
+                   Aspect="AspectFit"/>
+
+            <!-- Texto reconocido -->
+            <Label Text="Texto Reconocido:" FontAttributes="Bold"/>
+            <Editor x:Name="recognizedTextEditor"
+                    HeightRequest="200"
+                    IsSpellCheckEnabled="False"
+                    IsReadOnly="False"/>
+
+            <!-- Botones de acción -->
+            <HorizontalStackLayout Spacing="20" HorizontalOptions="Center">
+                <Button Text="Copiar Texto" 
+                        Clicked="OnCopyTextClicked"
+                        WidthRequest="150"/>
+
+                <Button Text="Volver" 
+                        Clicked="OnBackClicked"
+                        WidthRequest="150"/>
+            </HorizontalStackLayout>
+
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>
