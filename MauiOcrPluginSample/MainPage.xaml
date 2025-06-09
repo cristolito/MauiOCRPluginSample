@@ -3,55 +3,71 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:cv="clr-namespace:Camera.MAUI;assembly=Camera.MAUI"
              x:Class="MauiOcrPluginSample.MainPage"
-             Title="OCR">
+             Title="Captura de Odómetros">
 
-    <Grid>
-        <!-- Cámara principal (tamaño completo) -->
-        <cv:CameraView x:Name="cameraView" 
-                       CamerasLoaded="cameraView_CamerasLoaded"/>
+    <Grid RowDefinitions="*,Auto"
+          RowSpacing="0"
+          BackgroundColor="Black">
 
-        <!-- Capa semitransparente con área de captura -->
-        <Grid BackgroundColor="#80000000" 
-              Padding="40">
-            <Border x:Name="captureArea"
-                   HorizontalOptions="Center"
-                   VerticalOptions="Center"
-                   HeightRequest="300"
-                   WidthRequest="300"
-                   Stroke="White"
-                   StrokeThickness="2"
-                   StrokeShape="Rectangle">
-                <!-- Cámara para la captura real -->
-                <cv:CameraView x:Name="realCaptureCamera"
-                              HeightRequest="300"
-                              WidthRequest="300"/>
-            </Border>
+        <!-- Área principal de la cámara -->
+        <Grid Grid.Row="0"
+              VerticalOptions="FillAndExpand">
+
+            <!-- Vista de cámara principal -->
+            <cv:CameraView x:Name="realCaptureCamera"
+                           HeightRequest="300"
+                           WidthRequest="300"
+                           CamerasLoaded="CameraView_CamerasLoaded"/>
+
+                <Border x:Name="captureArea"
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center"
+                       HeightRequest="300"
+                       WidthRequest="300"
+                       Stroke="White"
+                       StrokeThickness="2"
+                       StrokeShape="Rectangle">
+                </Border>
         </Grid>
 
-        <!-- Controles de acción -->
-        <VerticalStackLayout VerticalOptions="End"
-                             HorizontalOptions="Center"
-                             Spacing="20"
-                             Margin="0,0,0,40">
+        <!-- Panel de controles en la parte inferior -->
+        <VerticalStackLayout Grid.Row="1"
+                             BackgroundColor="#1A1A1A"
+                             Padding="20,10"
+                             Spacing="15">
 
-            <!-- Botón para capturar foto -->
-            <Button Text="Capturar Foto" 
-                    Clicked="OnCapturePhotoClicked"
-                    WidthRequest="200"/>
+            <!-- Fila de botones principales -->
+            <HorizontalStackLayout Spacing="15"
+                                  HorizontalOptions="Center">
+                <Button Text="Capturar" 
+                        Clicked="OnCapturePhotoClicked"
+                        WidthRequest="160"
+                        HeightRequest="50"/>
 
-            <!-- Botón para seleccionar de galería -->
-            <Button Text="Seleccionar de Galería" 
-                    Clicked="OnSelectFromGalleryClicked"
-                    WidthRequest="200"/>
+                <Button Text="Galería" 
+                        Clicked="OnSelectFromGalleryClicked"
+                        WidthRequest="160"
+                        HeightRequest="50"/>
+            </HorizontalStackLayout>
 
-            <!-- Botón para alternar cámara -->
-            <Button Text="Cambiar Cámara" 
-                    Clicked="OnSwitchCameraClicked"
-                    WidthRequest="200"/>
+            <!-- Fila de botones secundarios -->
+            <HorizontalStackLayout Spacing="15"
+                                  HorizontalOptions="Center">
+                <Button Text="Cambiar Cámara" 
+                        Clicked="OnSwitchCameraClicked"
+                        WidthRequest="160"
+                        HeightRequest="50"/>
+
+                <Button Text="Reiniciar" 
+                        Clicked="OnResetCamera"
+                        WidthRequest="160"
+                        HeightRequest="50"/>
+            </HorizontalStackLayout>
         </VerticalStackLayout>
 
-        <!-- Indicador de carga -->
+        <!-- Indicador de carga (centrado en toda la pantalla) -->
         <ActivityIndicator x:Name="loadingIndicator"
+                           Grid.RowSpan="2"
                            IsVisible="False"
                            IsRunning="True"
                            Color="White"

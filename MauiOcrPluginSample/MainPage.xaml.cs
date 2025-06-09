@@ -18,9 +18,8 @@ namespace MauiOcrPluginSample
             await OcrPlugin.Default.InitAsync();
 
             // Inicializar cámara si no está ya inicializada
-            if (cameraView.Cameras.Count > 0 && cameraView.Camera == null)
+            if (realCaptureCamera.Cameras.Count > 0 && realCaptureCamera.Camera == null)
             {
-                cameraView.Camera = cameraView.Cameras.First();
                 realCaptureCamera.Camera = realCaptureCamera.Cameras.First();
                 await StartCameraAsync();
             }
@@ -34,24 +33,20 @@ namespace MauiOcrPluginSample
 
         private async Task StartCameraAsync()
         {
-            await cameraView.StopCameraAsync();
             await realCaptureCamera.StopCameraAsync();
 
-            await cameraView.StartCameraAsync();
             await realCaptureCamera.StartCameraAsync();
         }
 
         private async Task StopCameraAsync()
         {
-            await cameraView.StopCameraAsync();
             await realCaptureCamera.StopCameraAsync();
         }
 
-        private async void cameraView_CamerasLoaded(object sender, EventArgs e)
+        private async void CameraView_CamerasLoaded(object sender, EventArgs e)
         {
-            if (cameraView.Cameras.Count > 0)
+            if (realCaptureCamera.Cameras.Count > 0)
             {
-                cameraView.Camera = cameraView.Cameras.First();
                 realCaptureCamera.Camera = realCaptureCamera.Cameras.First();
                 await StartCameraAsync();
             }
@@ -59,14 +54,19 @@ namespace MauiOcrPluginSample
 
         private async void OnSwitchCameraClicked(object sender, EventArgs e)
         {
-            if (cameraView.Cameras.Count > 1)
+            if (realCaptureCamera.Cameras.Count > 1)
             {
-                cameraView.Camera = cameraView.Camera == cameraView.Cameras[0] ?
-                    cameraView.Cameras[1] : cameraView.Cameras[0];
-
                 realCaptureCamera.Camera = realCaptureCamera.Camera == realCaptureCamera.Cameras[0] ?
                     realCaptureCamera.Cameras[1] : realCaptureCamera.Cameras[0];
 
+                await StartCameraAsync();
+            }
+        }
+        
+        private async void OnResetCamera(object sender, EventArgs e)
+        {
+            if (realCaptureCamera.Cameras.Count > 1)
+            {
                 await StartCameraAsync();
             }
         }
