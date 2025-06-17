@@ -3,6 +3,8 @@ using Plugin.Maui.OCR;
 using System.Diagnostics;
 using CommunityToolkit.Maui.Core;
 using SkiaSharp;
+using System.Globalization;
+using System.Text.RegularExpressions;
 
 namespace MauiOcrPluginSample
 {
@@ -13,6 +15,14 @@ namespace MauiOcrPluginSample
         int pageCount;
         double widthCamera = 0;
         double heigthCamera = 0;
+        private static readonly Dictionary<string, string> CharacterReplacements = new()
+            {
+                {"|", "1"}, {"!", "1"}, {"l", "1"}, {"i", "1"}, {"I", "1"},
+                {"s", "5"}, {"S", "5"}, {"§", "5"}, {"$", "5"},
+                {"t", "7"}, {"T", "7"}, {"?", "7"}, {"Z", "7"},
+                {"o", "0"}, {"O", "0"}, {"°", "0"}, {"Q", "0"}, {"D", "0"},
+                {"b", "6"}, {"B", "8"}, {"g", "9"}, {"q", "9"}
+            };
 
         public MainPage(ICameraProvider cameraProvider)
         {
@@ -260,7 +270,8 @@ namespace MauiOcrPluginSample
 
         private async Task ProcessImageWithOcr(byte[] imageBytes)
         {
-            var ocrResult = await OcrPlugin.Default.RecognizeTextAsync(imageBytes);
+            var ocrResult = await OcrPlugin.Default.RecognizeTextAsync(imageBytes, true);
+            string result = CleanOdometerReading(ocrResult.AllText);
 
             if (!ocrResult.Success)
             {
@@ -268,7 +279,99 @@ namespace MauiOcrPluginSample
                 return;
             }
             loadingIndicator.IsVisible = false;
-            await Navigation.PushAsync(new OcrResultPage(ocrResult.AllText, imageBytes));
+            await Navigation.PushAsync(new OcrResultPage(result, imageBytes));
+        }
+        public string CleanOdometerReading(string rawText)
+        {
+            if (string.IsNullOrWhiteSpace(rawText))
+                return string.Empty;
+
+            // Paso 1: Eliminar todos los caracteres no numéricos (excepto puntos y comas para decimales)
+            var cleaned = Regex.Replace(rawText, @"[^\d.,]", "");
+
+            // Paso 2: Reemplazar caracteres comúnmente confundidos
+            foreach (var replacement in CharacterReplacements)
+            {
+                cleaned = cleaned.Replace(replacement.Key, replacement.Value);
+            }
+
+            // Paso 3: Manejo avanzado de puntos y comas
+            cleaned = ProcessDecimalSeparators(cleaned);
+
+            // Paso 4: Validar que sea un número válido
+            if (double.TryParse(cleaned, NumberStyles.Any, CultureInfo.InvariantCulture, out var result))
+            {
+                return FormatOdometerResult(cleaned, result);
+            }
+
+            return string.Empty;
+        }
+
+        private string ProcessDecimalSeparators(string input)
+        {
+            if (string.IsNullOrEmpty(input))
+                return input;
+
+            // Caso 1: Contiene coma (formato europeo)
+            if (input.Contains(','))
+            {
+                // Reemplazar todos los puntos (separadores de miles)
+                input = input.Replace(".", "");
+                // Convertir coma decimal a punto
+                return input.Replace(",", ".");
+            }
+
+            // Caso 2: Contiene punto
+            if (input.Contains('.'))
+            {
+                // Si hay más de un punto, asumir que son separadores de miles
+                if (input.Count(c => c == '.') > 1)
+                {
+                    return input.Replace(".", "");
+                }
+
+                // Si solo hay un punto, verificar si es decimal
+                var parts = input.Split('.');
+                if (parts.Length == 2)
+                {
+                    // Regla especial para odómetros: 
+                    // Si la parte decimal tiene 1 dígito, es decimal válido
+                    // Si tiene más dígitos, probablemente sea un separador
+                    if (parts[1].Length == 1 && char.IsDigit(parts[1][0]))
+                    {
+                        return input; // Mantener como decimal
+                    }
+                    return input.Replace(".", ""); // Eliminar como separador
+                }
+            }
+
+            return input;
+        }
+
+        private string FormatOdometerResult(string cleanedValue, double parsedValue)
+        {
+            // Para odómetros, normalmente queremos:
+            // - Sin decimales si no los tiene
+            // - Máximo 1 decimal si es .0 o .5 (común en odómetros)
+            // - Eliminar .0 pero mantener .5 u otros valores decimales
+
+            var decimalPart = cleanedValue.Contains('.')
+                ? cleanedValue.Split('.')[1]
+                : string.Empty;
+
+            if (decimalPart.Length == 1)
+            {
+                // Caso especial para valores como 1500.8
+                return parsedValue.ToString("0.0", CultureInfo.InvariantCulture);
+            }
+            else if (decimalPart == "0" || string.IsNullOrEmpty(decimalPart))
+            {
+                // Eliminar decimales cero (1500.0 → 1500)
+                return parsedValue.ToString("0", CultureInfo.InvariantCulture);
+            }
+
+            // Otros casos (ej. 1234.56 aunque no sea común en odómetros)
+            return parsedValue.ToString("0.##", CultureInfo.InvariantCulture);
         }
     }
 }
