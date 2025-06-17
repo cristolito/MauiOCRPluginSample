@@ -1,34 +1,46 @@
 ﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             xmlns:cv="clr-namespace:Camera.MAUI;assembly=Camera.MAUI"
-             x:Class="MauiOcrPluginSample.MainPage"
-             Title="Captura de Odómetros">
+             xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+             Shell.NavBarIsVisible="False"
+             x:Class="MauiOcrPluginSample.MainPage">
 
     <Grid RowDefinitions="*,Auto"
           RowSpacing="0"
           BackgroundColor="Black">
+        
+        <toolkit:CameraView x:Name="MyCamera"
+                               HorizontalOptions="Fill"
+                               VerticalOptions="Fill"
+                                SizeChanged="OnCameraContentSizeChanged"/>
 
-        <!-- Área principal de la cámara -->
-        <Grid Grid.Row="0"
-              VerticalOptions="FillAndExpand">
+        <!-- Superposición absoluta para el recuadro (independiente del ContentView) -->
+        <AbsoluteLayout x:Name="OverlayLayout"
+                       HorizontalOptions="Fill"
+                       VerticalOptions="Fill"
+                       IsVisible="True">
 
-            <!-- Vista de cámara principal -->
-            <cv:CameraView x:Name="realCaptureCamera"
-                           HeightRequest="300"
-                           WidthRequest="300"
-                           CamerasLoaded="CameraView_CamerasLoaded"/>
+            <!-- Recuadro de captura con Border -->
+            <Border x:Name="CaptureBorder"
+                   AbsoluteLayout.LayoutBounds="0.5,0.5,0.8,0.4"
+                   AbsoluteLayout.LayoutFlags="PositionProportional,WidthProportional,HeightProportional"
+                   BackgroundColor="Transparent"
+                   Stroke="Red"
+                   StrokeThickness="3"
+                   StrokeShape="RoundRectangle 10"
+                   HorizontalOptions="Center"
+                   VerticalOptions="Center">
+            </Border>
 
-                <Border x:Name="captureArea"
-                       HorizontalOptions="Center"
-                       VerticalOptions="Center"
-                       HeightRequest="300"
-                       WidthRequest="300"
-                       Stroke="White"
-                       StrokeThickness="2"
-                       StrokeShape="Rectangle">
-                </Border>
-        </Grid>
+            <!-- Texto de ayuda -->
+            <Label Text="Alinee el odómetro dentro del recuadro"
+                   TextColor="White"
+                   FontSize="14"
+                   AbsoluteLayout.LayoutBounds="0.5,0.9,0.8,0.1"
+                   AbsoluteLayout.LayoutFlags="PositionProportional,WidthProportional"
+                   HorizontalOptions="Center"
+                   VerticalOptions="End"/>
+        </AbsoluteLayout>
 
         <!-- Panel de controles en la parte inferior -->
         <VerticalStackLayout Grid.Row="1"
@@ -48,30 +60,21 @@
                         Clicked="OnSelectFromGalleryClicked"
                         WidthRequest="160"
                         HeightRequest="50"/>
-            </HorizontalStackLayout>
-
-            <!-- Fila de botones secundarios -->
-            <HorizontalStackLayout Spacing="15"
-                                  HorizontalOptions="Center">
-                <Button Text="Cambiar Cámara" 
-                        Clicked="OnSwitchCameraClicked"
-                        WidthRequest="160"
-                        HeightRequest="50"/>
 
                 <Button Text="Reiniciar" 
-                        Clicked="OnResetCamera"
-                        WidthRequest="160"
-                        HeightRequest="50"/>
+                         Clicked="OnResetCamera"
+                         WidthRequest="160"
+                         HeightRequest="50"/>
             </HorizontalStackLayout>
         </VerticalStackLayout>
 
         <!-- Indicador de carga (centrado en toda la pantalla) -->
         <ActivityIndicator x:Name="loadingIndicator"
-                           Grid.RowSpan="2"
-                           IsVisible="False"
-                           IsRunning="True"
-                           Color="White"
-                           HorizontalOptions="Center"
-                           VerticalOptions="Center"/>
+                       Grid.RowSpan="2"
+                       IsVisible="False"
+                       IsRunning="True"
+                       Color="White"
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center"/>
     </Grid>
 </ContentPage>

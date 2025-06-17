@@ -12,6 +12,10 @@ namespace MauiOcrPluginSample
             // Mostrar resultados
             recognizedTextEditor.Text = recognizedText;
             capturedImage.Source = ImageSource.FromStream(() => new MemoryStream(imageBytes));
+#if ANDROID
+            var activity = Platform.CurrentActivity;
+            activity!.RequestedOrientation = Android.Content.PM.ScreenOrientation.Portrait;
+#endif
         }
 
         private async void OnCopyTextClicked(object sender, EventArgs e)

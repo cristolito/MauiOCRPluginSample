@@ -1,4 +1,4 @@
-﻿using Camera.MAUI;
+﻿using CommunityToolkit.Maui;
 using Plugin.Maui.OCR;
 
 namespace MauiOcrPluginSample
@@ -11,7 +11,7 @@ namespace MauiOcrPluginSample
             builder
                 .UseMauiApp<App>()
                 .UseOcr()
-                .UseMauiCameraView()
+                .UseMauiCommunityToolkitCamera()
                 .ConfigureFonts(fonts =>
                 {
                     fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
