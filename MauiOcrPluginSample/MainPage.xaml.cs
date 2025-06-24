@@ -5,6 +5,7 @@ using CommunityToolkit.Maui.Core;
 using SkiaSharp;
 using System.Globalization;
 using System.Text.RegularExpressions;
+using System.IO;
 
 namespace MauiOcrPluginSample
 {
@@ -15,9 +16,47 @@ namespace MauiOcrPluginSample
         int pageCount;
         double widthCamera = 0;
         double heigthCamera = 0;
+        private bool _isFlashOn = false;
+        private float _currentZoom = 1.0f;
+
+        #region Control de Zoom con Slider
+
+        private void OnZoomSliderChanged(object sender, ValueChangedEventArgs e)
+        {
+            _currentZoom = (float)e.NewValue;
+            MyCamera.ZoomFactor = _currentZoom;
+        }
+
+        #endregion
+
+        #region Control de Flash
+
+        private async void OnFlashButtonClicked(object sender, EventArgs e)
+        {
+            try
+            {
+                _isFlashOn = !_isFlashOn;
+
+                // Actualizar UI del botón
+                flashButton.Text = _isFlashOn ? "⚡ ON" : "⚡ OFF";
+                flashButton.BackgroundColor = _isFlashOn ? Color.FromArgb("#FFD700") : Color.FromArgb("#333333");
+                MyCamera.CameraFlashMode = _isFlashOn ? CameraFlashMode.On : CameraFlashMode.Off;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error al controlar flash: {ex.Message}");
+                await DisplayAlert("Error", "No se pudo activar el flash", "OK");
+                _isFlashOn = false;
+                flashButton.Text = "⚡ OFF";
+                flashButton.BackgroundColor = Color.FromArgb("#333333");
+            }
+        }
+
+        #endregion
+
         private static readonly Dictionary<string, string> CharacterReplacements = new()
             {
-                {"|", "1"}, {"!", "1"}, {"l", "1"}, {"i", "1"}, {"I", "1"},
+                {"|", "1"}, {"!", "1"}, {"i", "1"}, {"I", "1"},
                 {"s", "5"}, {"S", "5"}, {"§", "5"}, {"$", "5"},
                 {"t", "7"}, {"T", "7"}, {"?", "7"}, {"Z", "7"},
                 {"o", "0"}, {"O", "0"}, {"°", "0"}, {"Q", "0"}, {"D", "0"},
@@ -46,6 +85,16 @@ namespace MauiOcrPluginSample
             await cameraProvider.RefreshAvailableCameras(CancellationToken.None);
             MyCamera.SelectedCamera = cameraProvider.AvailableCameras
                 .Where(c => c.Position == CameraPosition.Rear).FirstOrDefault();
+
+            zoomSlider.Value = _currentZoom;
+            flashButton.Text = _isFlashOn ? "⚡ ON" : "⚡ OFF";
+            flashButton.BackgroundColor = _isFlashOn ? Color.FromArgb("#FFD700") : Color.FromArgb("#333333");
+            // Actualizar slider según capacidades de la cámara
+            if (MyCamera.SelectedCamera != null)
+            {
+                zoomSlider.Maximum = MyCamera.SelectedCamera.MaximumZoomFactor;
+                zoomSlider.Minimum = MyCamera.SelectedCamera.MinimumZoomFactor;
+            }
         }
         protected override void OnNavigatedFrom(NavigatedFromEventArgs args)
         {
@@ -59,11 +108,6 @@ namespace MauiOcrPluginSample
         {
             MyCamera.MediaCaptured -= MyCamera_MediaCaptured;
             MyCamera.Handler?.DisconnectHandler();
-        }
-        // Método para obtener las dimensiones reales del ContentView
-        private (double containerWidth, double containerHeight) GetCameraContainerDimensions()
-        {
-            return (MyCamera.Width, MyCamera.Height);
         }
         private void OnCameraContentSizeChanged(object sender, EventArgs e)
         {
@@ -93,7 +137,7 @@ namespace MauiOcrPluginSample
                 double rectX, rectY;
 
                 // Factor de ajuste para reducir ligeramente el rectángulo (ej. 0.95 = 5% más pequeño)
-                double scaleAdjustment = 0.98; // Ajusta este valor según necesidad (0.9 - 0.99)
+                double scaleAdjustment = .9; // Ajusta este valor según necesidad (0.9 - 0.99)
 
                 if (isNormalOrientation)
                 {
@@ -171,7 +215,9 @@ namespace MauiOcrPluginSample
                 using (var tempStream = new MemoryStream())
                 {
                     e.Media.Position = 0;
-                    await e.Media.CopyToAsync(tempStream);
+
+                    using var processedStream = PreprocessImageForOcr(e.Media);
+                    await processedStream.CopyToAsync(tempStream);
                     rawImageBytes = tempStream.ToArray();
                 }
 
@@ -239,7 +285,6 @@ namespace MauiOcrPluginSample
                 loadingIndicator.IsVisible = false;
             }
         }
-
         private async void OnSelectFromGalleryClicked(object sender, EventArgs e)
         {
             try
@@ -270,35 +315,118 @@ namespace MauiOcrPluginSample
 
         private async Task ProcessImageWithOcr(byte[] imageBytes)
         {
-            var ocrResult = await OcrPlugin.Default.RecognizeTextAsync(imageBytes, true);
-            string result = CleanOdometerReading(ocrResult.AllText);
+            var options = new OcrOptions.Builder()
+                .SetTryHard(true)
+                .Build();
+
+            var ocrResult = await OcrPlugin.Default.RecognizeTextAsync(imageBytes, options);
 
             if (!ocrResult.Success)
             {
                 await DisplayAlert("Error", "No se pudo reconocer texto en la imagen", "OK");
                 return;
             }
+
+            // Procesar cada línea por separado
+            var cleanedLines = new List<string>();
+            foreach (var line in ocrResult.Lines)
+            {
+                var cleanedLine = CleanOdometerReading(line);
+                if (!string.IsNullOrEmpty(cleanedLine))
+                {
+                    cleanedLines.Add(cleanedLine);
+                }
+            }
+
             loadingIndicator.IsVisible = false;
-            await Navigation.PushAsync(new OcrResultPage(result, imageBytes));
+
+            // Pasar la lista de resultados en lugar del texto unido
+            await Navigation.PushAsync(new OcrResultPage(cleanedLines, imageBytes));
+        }
+        private Stream PreprocessImageForOcr(Stream imageStream)
+        {
+            try
+            {
+                // Cargar imagen original
+                using var original = SKBitmap.Decode(imageStream);
+                if (original == null) return imageStream;
+
+                // Convertir a escala de grises
+                using var grayBitmap = new SKBitmap(original.Width, original.Height);
+                using (var canvas = new SKCanvas(grayBitmap))
+                {
+                    var paint = new SKPaint
+                    {
+                        ColorFilter = SKColorFilter.CreateColorMatrix(new float[]
+                        {
+                            0.299f, 0.587f, 0.114f, 0, 0,
+                            0.299f, 0.587f, 0.114f, 0, 0,
+                            0.299f, 0.587f, 0.114f, 0, 0,
+                            0, 0, 0, 1, 0
+                        })
+                    };
+                    canvas.DrawBitmap(original, 0, 0, paint);
+                }
+
+                // Aumentar contraste
+                using var contrastBitmap = new SKBitmap(grayBitmap.Width, grayBitmap.Height);
+                using (var canvas = new SKCanvas(contrastBitmap))
+                {
+                    var contrast = 1.5f; // Ajustar según necesidad
+                    var matrix = new float[]
+                    {
+                        contrast, 0, 0, 0, (1 - contrast) * 0.5f,
+                        0, contrast, 0, 0, (1 - contrast) * 0.5f,
+                        0, 0, contrast, 0, (1 - contrast) * 0.5f,
+                        0, 0, 0, 1, 0
+                    };
+
+                    var paint = new SKPaint
+                    {
+                        ColorFilter = SKColorFilter.CreateColorMatrix(matrix)
+                    };
+                    canvas.DrawBitmap(grayBitmap, 0, 0, paint);
+                }
+
+                // Reducir ruido (filtro bilateral o desenfoque)
+                using var finalBitmap = new SKBitmap(contrastBitmap.Width, contrastBitmap.Height);
+                using (var canvas = new SKCanvas(finalBitmap))
+                {
+                    var paint = new SKPaint
+                    {
+                        ImageFilter = SKImageFilter.CreateBlur(1f, 1f)
+                    };
+                    canvas.DrawBitmap(contrastBitmap, 0, 0, paint);
+                }
+
+                // Guardar resultado
+                var resultStream = new MemoryStream();
+                finalBitmap.Encode(resultStream, SKEncodedImageFormat.Jpeg, 90);
+                resultStream.Position = 0;
+                return resultStream;
+            }
+            catch
+            {
+                // Si falla el procesamiento, devolver la imagen original
+                imageStream.Position = 0;
+                return imageStream;
+            }
         }
         public string CleanOdometerReading(string rawText)
         {
-            if (string.IsNullOrWhiteSpace(rawText))
-                return string.Empty;
+            string cleaned = string.Empty;
 
-            // Paso 1: Eliminar todos los caracteres no numéricos (excepto puntos y comas para decimales)
-            var cleaned = Regex.Replace(rawText, @"[^\d.,]", "");
-
-            // Paso 2: Reemplazar caracteres comúnmente confundidos
             foreach (var replacement in CharacterReplacements)
             {
                 cleaned = cleaned.Replace(replacement.Key, replacement.Value);
             }
 
-            // Paso 3: Manejo avanzado de puntos y comas
+            cleaned = Regex.Replace(rawText, @"[^\d.,]", "");
+
+            
+
             cleaned = ProcessDecimalSeparators(cleaned);
 
-            // Paso 4: Validar que sea un número válido
             if (double.TryParse(cleaned, NumberStyles.Any, CultureInfo.InvariantCulture, out var result))
             {
                 return FormatOdometerResult(cleaned, result);

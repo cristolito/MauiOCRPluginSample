@@ -8,67 +8,72 @@
     <Grid RowDefinitions="*,Auto"
           RowSpacing="0"
           BackgroundColor="Black">
-        
-        <toolkit:CameraView x:Name="MyCamera"
-                               HorizontalOptions="Fill"
-                               VerticalOptions="Fill"
-                                SizeChanged="OnCameraContentSizeChanged"/>
 
-        <!-- Superposición absoluta para el recuadro (independiente del ContentView) -->
+        <toolkit:CameraView x:Name="MyCamera"
+                           HorizontalOptions="Fill"
+                           VerticalOptions="Fill"
+                           SizeChanged="OnCameraContentSizeChanged">
+        </toolkit:CameraView>
+
         <AbsoluteLayout x:Name="OverlayLayout"
                        HorizontalOptions="Fill"
-                       VerticalOptions="Fill"
-                       IsVisible="True">
+                       VerticalOptions="Fill">
 
-            <!-- Recuadro de captura con Border -->
+            <!-- Recuadro de captura -->
             <Border x:Name="CaptureBorder"
                    AbsoluteLayout.LayoutBounds="0.5,0.5,0.8,0.4"
                    AbsoluteLayout.LayoutFlags="PositionProportional,WidthProportional,HeightProportional"
                    BackgroundColor="Transparent"
                    Stroke="Red"
                    StrokeThickness="3"
-                   StrokeShape="RoundRectangle 10"
-                   HorizontalOptions="Center"
-                   VerticalOptions="Center">
-            </Border>
-
-            <!-- Texto de ayuda -->
-            <Label Text="Alinee el odómetro dentro del recuadro"
-                   TextColor="White"
-                   FontSize="14"
-                   AbsoluteLayout.LayoutBounds="0.5,0.9,0.8,0.1"
-                   AbsoluteLayout.LayoutFlags="PositionProportional,WidthProportional"
-                   HorizontalOptions="Center"
-                   VerticalOptions="End"/>
+                   StrokeShape="RoundRectangle 10"/>
         </AbsoluteLayout>
 
-        <!-- Panel de controles en la parte inferior -->
+        
+        
         <VerticalStackLayout Grid.Row="1"
                              BackgroundColor="#1A1A1A"
                              Padding="20,10"
                              Spacing="15">
 
-            <!-- Fila de botones principales -->
             <HorizontalStackLayout Spacing="15"
                                   HorizontalOptions="Center">
+                <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto">
+                    <Label Text="🔍" 
+           VerticalOptions="Center"
+           FontSize="16"/>
+
+                    <Slider x:Name="zoomSlider"
+            Grid.Column="1"
+            MinimumTrackColor="LightGray"
+            MaximumTrackColor="DarkGray"
+            ThumbColor="White"
+                            WidthRequest="200"
+            ValueChanged="OnZoomSliderChanged"/>
+
+                </Grid>
+                <Button x:Name="flashButton"
+                        Clicked="OnFlashButtonClicked"
+                        WidthRequest="80"
+                        HeightRequest="50"/>
+
                 <Button Text="Capturar" 
                         Clicked="OnCapturePhotoClicked"
-                        WidthRequest="160"
+                        WidthRequest="120"
                         HeightRequest="50"/>
 
                 <Button Text="Galería" 
                         Clicked="OnSelectFromGalleryClicked"
-                        WidthRequest="160"
                         HeightRequest="50"/>
 
                 <Button Text="Reiniciar" 
                          Clicked="OnResetCamera"
-                         WidthRequest="160"
+                         WidthRequest="80"
                          HeightRequest="50"/>
+
             </HorizontalStackLayout>
         </VerticalStackLayout>
 
-        <!-- Indicador de carga (centrado en toda la pantalla) -->
         <ActivityIndicator x:Name="loadingIndicator"
                        Grid.RowSpan="2"
                        IsVisible="False"

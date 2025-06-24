@@ -2,34 +2,41 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="MauiOcrPluginSample.OcrResultPage"
-             Title="Resultados OCR">
+             Title="Resultado OCR">
 
     <ScrollView>
-        <VerticalStackLayout Spacing="20" Padding="20">
-
+        <VerticalStackLayout Padding="20" Spacing="15">
             <!-- Imagen capturada -->
             <Image x:Name="capturedImage"
-                   HeightRequest="300"
-                   Aspect="AspectFit"/>
+                   Aspect="AspectFit"
+                   HeightRequest="300"/>
 
-            <!-- Texto reconocido -->
-            <Label Text="Texto Reconocido:" FontAttributes="Bold"/>
-            <Editor x:Name="recognizedTextEditor"
+            <!-- Controles de formato -->
+            <HorizontalStackLayout Spacing="15" VerticalOptions="Center">
+                <CheckBox x:Name="decimalCheckBox"
+                          VerticalOptions="Center"
+                          CheckedChanged="OnDecimalCheckBoxChanged"/>
+                <Label Text="Formato decimal para último valor"
+                       VerticalOptions="Center"/>
+            </HorizontalStackLayout>
+
+            <Label Text="Puede editar el texto" />
+            <!-- Editor de texto con líneas preservadas -->
+            <Editor x:Name="ocrTextEditor"
                     HeightRequest="200"
-                    IsSpellCheckEnabled="False"
-                    IsReadOnly="False"/>
+                    FontSize="16"
+                    AutoSize="TextChanges"
+                    TextChanged="OnOcrTextChanged"/>
 
-            <!-- Botones de acción -->
-            <HorizontalStackLayout Spacing="20" HorizontalOptions="Center">
-                <Button Text="Copiar Texto" 
+            <!-- Botones -->
+            <HorizontalStackLayout Spacing="15" HorizontalOptions="Center">
+                <Button Text="Copiar Texto"
                         Clicked="OnCopyTextClicked"
                         WidthRequest="150"/>
-
-                <Button Text="Volver" 
+                <Button Text="Volver"
                         Clicked="OnBackClicked"
                         WidthRequest="150"/>
             </HorizontalStackLayout>
-
         </VerticalStackLayout>
     </ScrollView>
 </ContentPage>
