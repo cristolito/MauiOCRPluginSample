@@ -5,32 +5,102 @@ using CommunityToolkit.Maui.Core;
 using SkiaSharp;
 using System.Globalization;
 using System.Text.RegularExpressions;
-using System.IO;
 
 namespace MauiOcrPluginSample
 {
     public partial class MainPage : ContentPage
     {
+        //Para seleccionar la cámara
         private ICameraProvider cameraProvider;
+        //Para el loading
         private bool isProcessingImage;
+        //Esto sirve para manejar la navegacón según un bug del toolkit
         int pageCount;
+        //Atributos para la cámnara
         double widthCamera = 0;
         double heigthCamera = 0;
         private bool _isFlashOn = false;
         private float _currentZoom = 1.0f;
+        //Diccionario de caracateres de remplazo
+        private static readonly Dictionary<string, string> CharacterReplacements = new()
+            {
+                {"|", "1"}, {"!", "1"}, {"i", "1"}, {"I", "1"},
+                {"s", "5"}, {"S", "5"}, {"§", "5"}, {"$", "5"},
+                {"t", "7"}, {"T", "7"}, {"?", "7"}, {"Z", "7"},
+                {"o", "0"}, {"O", "0"}, {"°", "0"}, {"Q", "0"}, {"D", "0"},
+                {"b", "6"}, {"B", "8"}, {"g", "9"}, {"q", "9"}
+            };
 
         #region Control de Zoom con Slider
-
         private void OnZoomSliderChanged(object sender, ValueChangedEventArgs e)
         {
             _currentZoom = (float)e.NewValue;
             MyCamera.ZoomFactor = _currentZoom;
         }
-
         #endregion
 
-        #region Control de Flash
+        #region Métodos de los botones
+        private async void OnCapturePhotoClicked(object sender, EventArgs e)
+        {
+            if (isProcessingImage) return;
 
+            isProcessingImage = true;
+            loadingIndicator.IsVisible = true;
+            try
+            {
+                await MyCamera.CaptureImage(CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.ToString());
+            }
+            finally
+            {
+                isProcessingImage = false;
+                loadingIndicator.IsVisible = false;
+            }
+        }
+        private async void OnSelectFromGalleryClicked(object sender, EventArgs e)
+        {
+            try
+            {
+                var result = await MediaPicker.Default.PickPhotoAsync();
+
+                if (result == null) return;
+
+                loadingIndicator.IsVisible = true;
+
+                using var stream = await result.OpenReadAsync();
+                using var memoryStream = new MemoryStream();
+                await stream.CopyToAsync(memoryStream);
+                var imageBytes = memoryStream.ToArray();
+
+                await ProcessImageWithOcr(imageBytes);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex);
+                await DisplayAlert("Error", ex.Message, "OK");
+            }
+            finally
+            {
+                loadingIndicator.IsVisible = false;
+            }
+        }
+
+        private async void OnResetCamera(object sender, EventArgs e)
+        {
+            try
+            {
+                var startCameraPreviewTCS = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+
+                await MyCamera.StartCameraPreview(startCameraPreviewTCS.Token);
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine(ex);
+            }
+        }
         private async void OnFlashButtonClicked(object sender, EventArgs e)
         {
             try
@@ -51,18 +121,9 @@ namespace MauiOcrPluginSample
                 flashButton.BackgroundColor = Color.FromArgb("#333333");
             }
         }
-
         #endregion
 
-        private static readonly Dictionary<string, string> CharacterReplacements = new()
-            {
-                {"|", "1"}, {"!", "1"}, {"i", "1"}, {"I", "1"},
-                {"s", "5"}, {"S", "5"}, {"§", "5"}, {"$", "5"},
-                {"t", "7"}, {"T", "7"}, {"?", "7"}, {"Z", "7"},
-                {"o", "0"}, {"O", "0"}, {"°", "0"}, {"Q", "0"}, {"D", "0"},
-                {"b", "6"}, {"B", "8"}, {"g", "9"}, {"q", "9"}
-            };
-
+        #region Constructor
         public MainPage(ICameraProvider cameraProvider)
         {
             InitializeComponent();
@@ -74,18 +135,25 @@ namespace MauiOcrPluginSample
                 pageCount = Navigation.NavigationStack.Count;
             };
         }
+        #endregion
+
+        #region Métodos para manejar la navegación e inicialización
         protected override async void OnAppearing()
         {
             base.OnAppearing();
 #if ANDROID
+            //Forzar modo horizontal
             var activity = Platform.CurrentActivity;
             activity!.RequestedOrientation = Android.Content.PM.ScreenOrientation.Landscape;
 #endif
+            //Inicializar el OCr plugin
             await OcrPlugin.Default.InitAsync();
+            //Inicio de cámara
             await cameraProvider.RefreshAvailableCameras(CancellationToken.None);
             MyCamera.SelectedCamera = cameraProvider.AvailableCameras
                 .Where(c => c.Position == CameraPosition.Rear).FirstOrDefault();
 
+            //Atributos para el zoom y boton de flash
             zoomSlider.Value = _currentZoom;
             flashButton.Text = _isFlashOn ? "⚡ ON" : "⚡ OFF";
             flashButton.BackgroundColor = _isFlashOn ? Color.FromArgb("#FFD700") : Color.FromArgb("#333333");
@@ -109,6 +177,9 @@ namespace MauiOcrPluginSample
             MyCamera.MediaCaptured -= MyCamera_MediaCaptured;
             MyCamera.Handler?.DisconnectHandler();
         }
+        #endregion
+
+        #region Útil para controlar el tamaño interno del componente al momento de recortar la imagen
         private void OnCameraContentSizeChanged(object sender, EventArgs e)
         {
             if (MyCamera.Width <= 0 || MyCamera.Height <= 0)
@@ -119,6 +190,60 @@ namespace MauiOcrPluginSample
 
             CaptureBorder.HeightRequest = heigthCamera;
             CaptureBorder.WidthRequest = widthCamera;
+        }
+        #endregion
+
+        private async void MyCamera_MediaCaptured(object? sender, CommunityToolkit.Maui.Views.MediaCapturedEventArgs e)
+        {
+            if (e.Media == null || e.Media.Length == 0)
+            {
+                await MainThread.InvokeOnMainThreadAsync(() =>
+                    DisplayAlert("Error", "No se pudo capturar la foto", "OK"));
+                return;
+            }
+
+            try
+            {
+                byte[] rawImageBytes;
+                using (var tempStream = new MemoryStream())
+                {
+                    e.Media.Position = 0;
+                    //Preprocesar imagen
+                    using var processedStream = PreprocessImageForOcr(e.Media);
+                    //Copiarlo al memorystream
+                    await processedStream.CopyToAsync(tempStream);
+                    //Pasar los bytes a una variable externa
+                    rawImageBytes = tempStream.ToArray();
+                }
+
+                // Recortar imagen
+                byte[] croppedImageBytes;
+                using (var inputImageStream = new MemoryStream(rawImageBytes))
+                using (var croppedImageStream = CropImageToBorderArea(inputImageStream))
+                {
+                    if (croppedImageStream == null)
+                        throw new Exception("No se pudo recortar la imagen");
+
+                    using var finalStream = new MemoryStream();
+                    await croppedImageStream.CopyToAsync(finalStream);
+                    croppedImageBytes = finalStream.ToArray();
+                }
+
+                // Enviar la imagen recortada al OCR
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    await ProcessImageWithOcr(croppedImageBytes);
+                });
+            }
+            catch (Exception ex)
+            {
+                await MainThread.InvokeOnMainThreadAsync(() =>
+                    DisplayAlert("Error", $"Error al procesar la imagen: {ex.Message}", "OK"));
+            }
+            finally
+            {
+                e.Media?.Dispose();
+            }
         }
         private Stream? CropImageToBorderArea(Stream imageStream)
         {
@@ -199,120 +324,6 @@ namespace MauiOcrPluginSample
                 return null;
             }
         }
-
-        private async void MyCamera_MediaCaptured(object? sender, CommunityToolkit.Maui.Views.MediaCapturedEventArgs e)
-        {
-            if (e.Media == null || e.Media.Length == 0)
-            {
-                await MainThread.InvokeOnMainThreadAsync(() =>
-                    DisplayAlert("Error", "No se pudo capturar la foto", "OK"));
-                return;
-            }
-
-            try
-            {
-                byte[] rawImageBytes;
-                using (var tempStream = new MemoryStream())
-                {
-                    e.Media.Position = 0;
-
-                    using var processedStream = PreprocessImageForOcr(e.Media);
-                    await processedStream.CopyToAsync(tempStream);
-                    rawImageBytes = tempStream.ToArray();
-                }
-
-                // Recortar imagen
-                byte[] croppedImageBytes;
-                using (var inputImageStream = new MemoryStream(rawImageBytes))
-                using (var croppedImageStream = CropImageToBorderArea(inputImageStream))
-                {
-                    if (croppedImageStream == null)
-                        throw new Exception("No se pudo recortar la imagen");
-
-                    using var finalStream = new MemoryStream();
-                    await croppedImageStream.CopyToAsync(finalStream);
-                    croppedImageBytes = finalStream.ToArray();
-                }
-
-                // Enviar la imagen recortada al OCR
-                await MainThread.InvokeOnMainThreadAsync(async () =>
-                {
-                    await ProcessImageWithOcr(croppedImageBytes);
-                });
-            }
-            catch (Exception ex)
-            {
-                await MainThread.InvokeOnMainThreadAsync(() =>
-                    DisplayAlert("Error", $"Error al procesar la imagen: {ex.Message}", "OK"));
-            }
-            finally
-            {
-                e.Media?.Dispose();
-            }
-        }
-
-        private async void OnResetCamera(object sender, EventArgs e)
-        {
-            try
-            {
-                var startCameraPreviewTCS = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-
-                await MyCamera.StartCameraPreview(startCameraPreviewTCS.Token);
-            }
-            catch (Exception ex)
-            {
-                Trace.WriteLine(ex);
-            }
-        }
-
-        private async void OnCapturePhotoClicked(object sender, EventArgs e)
-        {
-            if (isProcessingImage) return;
-
-            isProcessingImage = true;
-            loadingIndicator.IsVisible = true;
-            try
-            {
-                await MyCamera.CaptureImage(CancellationToken.None);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.ToString());
-            }
-            finally
-            {
-                isProcessingImage = false;
-                loadingIndicator.IsVisible = false;
-            }
-        }
-        private async void OnSelectFromGalleryClicked(object sender, EventArgs e)
-        {
-            try
-            {
-                var result = await MediaPicker.Default.PickPhotoAsync();
-
-                if (result == null) return;
-
-                loadingIndicator.IsVisible = true;
-
-                using var stream = await result.OpenReadAsync();
-                using var memoryStream = new MemoryStream();
-                await stream.CopyToAsync(memoryStream);
-                var imageBytes = memoryStream.ToArray();
-
-                await ProcessImageWithOcr(imageBytes);
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine(ex);
-                await DisplayAlert("Error", ex.Message, "OK");
-            }
-            finally
-            {
-                loadingIndicator.IsVisible = false;
-            }
-        }
-
         private async Task ProcessImageWithOcr(byte[] imageBytes)
         {
             var options = new OcrOptions.Builder()
@@ -343,6 +354,7 @@ namespace MauiOcrPluginSample
             // Pasar la lista de resultados en lugar del texto unido
             await Navigation.PushAsync(new OcrResultPage(cleanedLines, imageBytes));
         }
+        //Blancos y oscuros y aumento de brillo
         private Stream PreprocessImageForOcr(Stream imageStream)
         {
             try
@@ -427,11 +439,6 @@ namespace MauiOcrPluginSample
 
             cleaned = ProcessDecimalSeparators(cleaned);
 
-            if (double.TryParse(cleaned, NumberStyles.Any, CultureInfo.InvariantCulture, out var result))
-            {
-                return FormatOdometerResult(cleaned, result);
-            }
-
             return string.Empty;
         }
 
@@ -474,32 +481,6 @@ namespace MauiOcrPluginSample
             }
 
             return input;
-        }
-
-        private string FormatOdometerResult(string cleanedValue, double parsedValue)
-        {
-            // Para odómetros, normalmente queremos:
-            // - Sin decimales si no los tiene
-            // - Máximo 1 decimal si es .0 o .5 (común en odómetros)
-            // - Eliminar .0 pero mantener .5 u otros valores decimales
-
-            var decimalPart = cleanedValue.Contains('.')
-                ? cleanedValue.Split('.')[1]
-                : string.Empty;
-
-            if (decimalPart.Length == 1)
-            {
-                // Caso especial para valores como 1500.8
-                return parsedValue.ToString("0.0", CultureInfo.InvariantCulture);
-            }
-            else if (decimalPart == "0" || string.IsNullOrEmpty(decimalPart))
-            {
-                // Eliminar decimales cero (1500.0 → 1500)
-                return parsedValue.ToString("0", CultureInfo.InvariantCulture);
-            }
-
-            // Otros casos (ej. 1234.56 aunque no sea común en odómetros)
-            return parsedValue.ToString("0.##", CultureInfo.InvariantCulture);
         }
     }
 }

@@ -1,5 +1,7 @@
 ﻿using Microsoft.Maui.Controls;
 using Microsoft.Maui.Storage;
+using System.Globalization;
+using System.Text.RegularExpressions;
 
 namespace MauiOcrPluginSample
 {
@@ -7,13 +9,13 @@ namespace MauiOcrPluginSample
     {
         private string[] _originalLines;
         private bool _updatingText = false;
-        private bool _hasDecimalApplied = false;
+        private int _currentDecimalFormat = 0;
 
         public OcrResultPage(List<string> recognizedLines, byte[] imageBytes)
         {
             InitializeComponent();
 
-            // Guardar líneas originales
+            // Guardar líneas originales (sin formato)
             _originalLines = recognizedLines.ToArray();
 
             // Mostrar imagen y texto inicial
@@ -21,6 +23,7 @@ namespace MauiOcrPluginSample
             UpdateEditorText();
 
 #if ANDROID
+            //Forzar orientación en android. Esto es ponerlo horizontal
             var activity = Platform.CurrentActivity;
             activity!.RequestedOrientation = Android.Content.PM.ScreenOrientation.Portrait;
 #endif
@@ -32,56 +35,81 @@ namespace MauiOcrPluginSample
 
             var lines = new List<string>(_originalLines);
 
-            if (decimalCheckBox.IsChecked)
+            // Aplicar formato decimal según selección
+            for (int i = 0; i < lines.Count; i++)
             {
-                // Aplicar formato decimal al último número si está activo
-                if (lines.Count > 0)
-                {
-                    string lastLine = lines[lines.Count - 1];
+                string numericPart = ExtractNumericPart(lines[i]);
 
-                    // Solo procesar si es un número sin punto decimal
-                    if (decimal.TryParse(lastLine, out decimal number) && !lastLine.Contains('.'))
-                    {
-                        // Insertar punto antes del último dígito
-                        if (lastLine.Length > 1)
-                        {
-                            lines[lines.Count - 1] = lastLine.Insert(lastLine.Length - 1, ".");
-                            _hasDecimalApplied = true;
-                        }
-                    }
-                }
-            }
-            else if (_hasDecimalApplied)
-            {
-                // Quitar formato decimal del último número si estaba aplicado
-                if (lines.Count > 0)
+                if (!string.IsNullOrEmpty(numericPart))
                 {
-                    string lastLine = lines[lines.Count - 1];
-
-                    // Solo procesar si es un número con punto decimal
-                    if (lastLine.Contains('.'))
-                    {
-                        // Quitar el punto decimal
-                        lines[lines.Count - 1] = lastLine.Replace(".", "");
-                        _hasDecimalApplied = false;
-                    }
+                    string formattedNumber = FormatNumber(numericPart);
+                    lines[i] = lines[i].Replace(numericPart, formattedNumber);
                 }
             }
 
-            // Unir líneas manteniendo saltos
+            // Unir líneas manteniendo saltos para el editor
             ocrTextEditor.Text = string.Join(Environment.NewLine, lines);
 
             _updatingText = false;
         }
 
-        private void OnDecimalCheckBoxChanged(object sender, CheckedChangedEventArgs e)
+        private string ExtractNumericPart(string input)
         {
-            if (!_updatingText)
+            // Extraer solo la parte numérica (incluyendo puntos y comas existentes)
+            var match = Regex.Match(input, @"[\d.,]+");
+            return match.Success ? match.Value : string.Empty;
+        }
+
+        private string FormatNumber(string numericString)
+        {
+            // Limpiar el número (quitar todos los puntos y comas)
+            string cleanNumber = numericString.Replace(".", "").Replace(",", "");
+
+            switch (_currentDecimalFormat)
             {
-                // Actualizar las líneas originales con el texto editado
+                case 1: // 1 decimal
+                    if (cleanNumber.Length >= 2)
+                    {
+                        return $"{cleanNumber.Substring(0, cleanNumber.Length - 1)}.{cleanNumber[^1]}";
+                    }
+                    else if (cleanNumber.Length == 1)
+                    {
+                        return $"0.{cleanNumber}";
+                    }
+                    break;
+
+                case 2: // 2 decimales
+                    if (cleanNumber.Length >= 3)
+                    {
+                        return $"{cleanNumber.Substring(0, cleanNumber.Length - 2)}.{cleanNumber.Substring(cleanNumber.Length - 2)}";
+                    }
+                    else if (cleanNumber.Length == 2)
+                    {
+                        return $"0.{cleanNumber}";
+                    }
+                    else if (cleanNumber.Length == 1)
+                    {
+                        return $"0.0{cleanNumber}";
+                    }
+                    break;
+            }
+
+            // Caso por defecto (sin decimales)
+            return cleanNumber;
+        }
+
+        private void OnDecimalFormatChanged(object sender, EventArgs e)
+        {
+            if (!_updatingText && decimalFormatPicker.SelectedIndex >= 0)
+            {
+                _currentDecimalFormat = decimalFormatPicker.SelectedIndex;
+
+                // Actualizar las líneas originales con el texto sin formato
                 _originalLines = ocrTextEditor.Text.Split(
                     new[] { Environment.NewLine },
-                    StringSplitOptions.None);
+                    StringSplitOptions.None)
+                    .Select(line => Regex.Replace(line, @"[^\d]", "")) // Quitar puntos/commas
+                    .ToArray();
 
                 UpdateEditorText();
             }
@@ -94,8 +122,9 @@ namespace MauiOcrPluginSample
                 // Actualizar líneas originales cuando el usuario edita
                 _originalLines = e.NewTextValue.Split(
                     new[] { Environment.NewLine },
-                    StringSplitOptions.None);
-                _hasDecimalApplied = false; // Resetear ya que el usuario editó manualmente
+                    StringSplitOptions.None)
+                    .Select(line => Regex.Replace(line, @"[^\d]", "")) // Guardar solo dígitos
+                    .ToArray();
             }
         }
 

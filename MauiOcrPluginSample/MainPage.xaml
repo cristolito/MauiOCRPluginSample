@@ -9,6 +9,7 @@
           RowSpacing="0"
           BackgroundColor="Black">
 
+        <!--Cámara del tooltik-->
         <toolkit:CameraView x:Name="MyCamera"
                            HorizontalOptions="Fill"
                            VerticalOptions="Fill"
@@ -19,7 +20,7 @@
                        HorizontalOptions="Fill"
                        VerticalOptions="Fill">
 
-            <!-- Recuadro de captura -->
+            <!-- Recuadro de captura rojo -->
             <Border x:Name="CaptureBorder"
                    AbsoluteLayout.LayoutBounds="0.5,0.5,0.8,0.4"
                    AbsoluteLayout.LayoutFlags="PositionProportional,WidthProportional,HeightProportional"
@@ -30,12 +31,13 @@
         </AbsoluteLayout>
 
         
-        
+        <!--Contenedor para botones-->
         <VerticalStackLayout Grid.Row="1"
                              BackgroundColor="#1A1A1A"
                              Padding="20,10"
                              Spacing="15">
-
+            
+            <!--Fila de botones-->
             <HorizontalStackLayout Spacing="15"
                                   HorizontalOptions="Center">
                 <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto">
@@ -43,6 +45,7 @@
            VerticalOptions="Center"
            FontSize="16"/>
 
+                    <!--Maneja el zoom con un slider-->
                     <Slider x:Name="zoomSlider"
             Grid.Column="1"
             MinimumTrackColor="LightGray"
@@ -51,21 +54,26 @@
                             WidthRequest="200"
             ValueChanged="OnZoomSliderChanged"/>
 
+                    <!--Botones-->
                 </Grid>
+                <!--Activar/Desactivar el flash-->
                 <Button x:Name="flashButton"
                         Clicked="OnFlashButtonClicked"
                         WidthRequest="80"
                         HeightRequest="50"/>
 
+                <!--Tomar foto-->
                 <Button Text="Capturar" 
                         Clicked="OnCapturePhotoClicked"
                         WidthRequest="120"
                         HeightRequest="50"/>
-
+                
+                <!--Seleccioanr de galeria-->
                 <Button Text="Galería" 
                         Clicked="OnSelectFromGalleryClicked"
                         HeightRequest="50"/>
-
+                
+                <!--Reiniciar la cámara-->
                 <Button Text="Reiniciar" 
                          Clicked="OnResetCamera"
                          WidthRequest="80"

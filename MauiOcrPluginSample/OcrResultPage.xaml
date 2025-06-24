@@ -11,22 +11,31 @@
                    Aspect="AspectFit"
                    HeightRequest="300"/>
 
-            <!-- Controles de formato -->
-            <HorizontalStackLayout Spacing="15" VerticalOptions="Center">
-                <CheckBox x:Name="decimalCheckBox"
-                          VerticalOptions="Center"
-                          CheckedChanged="OnDecimalCheckBoxChanged"/>
-                <Label Text="Formato decimal para último valor"
+            <!-- Modal de formato decimal -->
+            <Grid ColumnDefinitions="Auto,*" 
+                  ColumnSpacing="10"
+                  VerticalOptions="Center">
+                <Label Text="Formato decimal:"
                        VerticalOptions="Center"/>
-            </HorizontalStackLayout>
 
-            <Label Text="Puede editar el texto" />
-            <!-- Editor de texto con líneas preservadas -->
+                <Picker x:Name="decimalFormatPicker"
+                        Grid.Column="1"
+                        Title="Seleccionar formato"
+                        SelectedIndex="0"
+                        SelectedIndexChanged="OnDecimalFormatChanged">
+                    <Picker.Items>
+                        <x:String>Sin decimales</x:String>
+                        <x:String>1 decimal</x:String>
+                        <x:String>2 decimales</x:String>
+                    </Picker.Items>
+                </Picker>
+            </Grid>
+
+            <!-- Editor de texto -->
             <Editor x:Name="ocrTextEditor"
                     HeightRequest="200"
                     FontSize="16"
-                    AutoSize="TextChanges"
-                    TextChanged="OnOcrTextChanged"/>
+                    AutoSize="TextChanges"/>
 
             <!-- Botones -->
             <HorizontalStackLayout Spacing="15" HorizontalOptions="Center">
