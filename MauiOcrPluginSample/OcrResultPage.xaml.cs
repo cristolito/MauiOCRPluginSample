@@ -62,8 +62,25 @@ namespace MauiOcrPluginSample
 
         private string FormatNumber(string numericString)
         {
-            // Limpiar el número (quitar todos los puntos y comas)
-            string cleanNumber = numericString.Replace(".", "").Replace(",", "");
+            if (string.IsNullOrEmpty(numericString))
+                return numericString;
+
+            // Primero eliminar ceros iniciales no significativos (excepto si hay un decimal)
+            string trimmedNumber = numericString.TrimStart('0');
+
+            // Manejar caso cuando todos eran ceros (ej: "000" -> "0")
+            if (string.IsNullOrEmpty(trimmedNumber))
+            {
+                trimmedNumber = "0";
+            }
+            // Manejar caso cuando el primer caracter es el punto/decimal (ej: ".25" -> "0.25")
+            else if (trimmedNumber.StartsWith(".") || trimmedNumber.StartsWith(","))
+            {
+                trimmedNumber = "0" + trimmedNumber;
+            }
+
+            // Limpiar el número (quitar todos los puntos y comas para el procesamiento)
+            string cleanNumber = trimmedNumber.Replace(".", "").Replace(",", "");
 
             switch (_currentDecimalFormat)
             {

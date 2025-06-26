@@ -30,13 +30,12 @@
                    StrokeShape="RoundRectangle 10"/>
         </AbsoluteLayout>
 
-        
+
         <!--Contenedor para botones-->
         <VerticalStackLayout Grid.Row="1"
                              BackgroundColor="#1A1A1A"
-                             Padding="20,10"
-                             Spacing="15">
-            
+                             Padding="5,10">
+
             <!--Fila de botones-->
             <HorizontalStackLayout Spacing="15"
                                   HorizontalOptions="Center">
@@ -59,24 +58,35 @@
                 <!--Activar/Desactivar el flash-->
                 <Button x:Name="flashButton"
                         Clicked="OnFlashButtonClicked"
-                        WidthRequest="80"
+                        Text="⚡"
+                        WidthRequest="60"
                         HeightRequest="50"/>
 
+                <Button x:Name="preProcessButton"
+                    Clicked="OnPreProcessButtonClicked"
+                        Text="B/N"
+                    WidthRequest="60"
+                    HeightRequest="50"/>
+
                 <!--Tomar foto-->
-                <Button Text="Capturar" 
+                <Button Text="📸 Foto" 
                         Clicked="OnCapturePhotoClicked"
                         WidthRequest="120"
+                        BackgroundColor="#2F75B5"
                         HeightRequest="50"/>
-                
+
                 <!--Seleccioanr de galeria-->
-                <Button Text="Galería" 
+                <Button Text="🖼️" 
                         Clicked="OnSelectFromGalleryClicked"
+                        WidthRequest="60"
+                        BackgroundColor="#2F75B5"
                         HeightRequest="50"/>
-                
+
                 <!--Reiniciar la cámara-->
-                <Button Text="Reiniciar" 
+                <Button Text="🔄" 
                          Clicked="OnResetCamera"
-                         WidthRequest="80"
+                         WidthRequest="60"
+                        BackgroundColor="#2F75B5"
                          HeightRequest="50"/>
 
             </HorizontalStackLayout>

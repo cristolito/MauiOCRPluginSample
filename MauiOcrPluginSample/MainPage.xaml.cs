@@ -14,18 +14,20 @@ namespace MauiOcrPluginSample
         private ICameraProvider cameraProvider;
         //Para el loading
         private bool isProcessingImage;
+        private bool isPreProcessEnabled = false;
         //Esto sirve para manejar la navegacón según un bug del toolkit
         int pageCount;
         //Atributos para la cámnara
         double widthCamera = 0;
         double heigthCamera = 0;
-        private bool _isFlashOn = false;
-        private float _currentZoom = 1.0f;
+        private bool isFlashOn = false;
+        private float currentZoom = 1.0f;
+        //Ajuste de recorte
+        private readonly double scaleAdjustment = .90; // Ajusta este valor según necesidad (0.9 - 0.99)
         //Diccionario de caracateres de remplazo
         private static readonly Dictionary<string, string> CharacterReplacements = new()
             {
-                {"|", "1"}, {"!", "1"}, {"i", "1"}, {"I", "1"},
-                {"s", "5"}, {"S", "5"}, {"§", "5"}, {"$", "5"},
+                {"|", "1"}, {"!", "1"}, {"i", "1"}, {"I", "1"}, {"$", "5"},
                 {"t", "7"}, {"T", "7"}, {"?", "7"}, {"Z", "7"},
                 {"o", "0"}, {"O", "0"}, {"°", "0"}, {"Q", "0"}, {"D", "0"},
                 {"b", "6"}, {"B", "8"}, {"g", "9"}, {"q", "9"}
@@ -34,8 +36,8 @@ namespace MauiOcrPluginSample
         #region Control de Zoom con Slider
         private void OnZoomSliderChanged(object sender, ValueChangedEventArgs e)
         {
-            _currentZoom = (float)e.NewValue;
-            MyCamera.ZoomFactor = _currentZoom;
+            currentZoom = (float)e.NewValue;
+            MyCamera.ZoomFactor = currentZoom;
         }
         #endregion
 
@@ -60,19 +62,42 @@ namespace MauiOcrPluginSample
                 loadingIndicator.IsVisible = false;
             }
         }
+        private void ResetConfig()
+        {
+            isFlashOn = false;
+            isPreProcessEnabled = false;
+            HandlePreProcess();
+            HandleFlash();
+            ResetZoom();
+        }
         private async void OnSelectFromGalleryClicked(object sender, EventArgs e)
         {
             try
             {
                 var result = await MediaPicker.Default.PickPhotoAsync();
 
-                if (result == null) return;
+                if (result == null)
+                {
+                    ResetConfig();
+                    return;
+                }
 
                 loadingIndicator.IsVisible = true;
 
                 using var stream = await result.OpenReadAsync();
                 using var memoryStream = new MemoryStream();
-                await stream.CopyToAsync(memoryStream);
+                
+                if (isPreProcessEnabled)
+                {
+                    using var processedStream = PreprocessImageForOcr(stream);
+                    //Copiarlo al memorystream
+                    await processedStream.CopyToAsync(memoryStream);
+                }
+                else
+                {
+                    await stream.CopyToAsync(memoryStream);
+                }
+
                 var imageBytes = memoryStream.ToArray();
 
                 await ProcessImageWithOcr(imageBytes);
@@ -95,31 +120,55 @@ namespace MauiOcrPluginSample
                 var startCameraPreviewTCS = new CancellationTokenSource(TimeSpan.FromSeconds(3));
 
                 await MyCamera.StartCameraPreview(startCameraPreviewTCS.Token);
+                ResetConfig();
             }
             catch (Exception ex)
             {
                 Trace.WriteLine(ex);
             }
         }
+        private void HandleFlash()
+        {
+            flashButton.BackgroundColor = isFlashOn ? Color.FromArgb("#FFD700") : Color.FromArgb("#333333");
+            MyCamera.CameraFlashMode = isFlashOn ? CameraFlashMode.On : CameraFlashMode.Off;
+        }
+        private void HandlePreProcess()
+        {
+            preProcessButton.BackgroundColor = isPreProcessEnabled ? Color.FromArgb("#2F75B5") : Color.FromArgb("#333333");
+        }
+        private void ResetZoom()
+        {
+            currentZoom = 1f;
+            MyCamera.ZoomFactor = currentZoom;
+            if (MyCamera.SelectedCamera != null)
+            {
+                zoomSlider.Maximum = MyCamera.SelectedCamera.MaximumZoomFactor;
+                zoomSlider.Minimum = MyCamera.SelectedCamera.MinimumZoomFactor;
+                zoomSlider.Value = currentZoom;
+            }
+        }
         private async void OnFlashButtonClicked(object sender, EventArgs e)
         {
             try
             {
-                _isFlashOn = !_isFlashOn;
+                isFlashOn = !isFlashOn;
 
                 // Actualizar UI del botón
-                flashButton.Text = _isFlashOn ? "⚡ ON" : "⚡ OFF";
-                flashButton.BackgroundColor = _isFlashOn ? Color.FromArgb("#FFD700") : Color.FromArgb("#333333");
-                MyCamera.CameraFlashMode = _isFlashOn ? CameraFlashMode.On : CameraFlashMode.Off;
+                HandleFlash();
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error al controlar flash: {ex.Message}");
                 await DisplayAlert("Error", "No se pudo activar el flash", "OK");
-                _isFlashOn = false;
-                flashButton.Text = "⚡ OFF";
-                flashButton.BackgroundColor = Color.FromArgb("#333333");
+                isFlashOn = false;
+                HandleFlash();
             }
+        }
+        private async void OnPreProcessButtonClicked(object sender, EventArgs e)
+        {
+            isPreProcessEnabled = !isPreProcessEnabled;
+            // Actualizar UI del botón
+            HandlePreProcess();
         }
         #endregion
 
@@ -154,15 +203,14 @@ namespace MauiOcrPluginSample
                 .Where(c => c.Position == CameraPosition.Rear).FirstOrDefault();
 
             //Atributos para el zoom y boton de flash
-            zoomSlider.Value = _currentZoom;
-            flashButton.Text = _isFlashOn ? "⚡ ON" : "⚡ OFF";
-            flashButton.BackgroundColor = _isFlashOn ? Color.FromArgb("#FFD700") : Color.FromArgb("#333333");
-            // Actualizar slider según capacidades de la cámara
-            if (MyCamera.SelectedCamera != null)
-            {
-                zoomSlider.Maximum = MyCamera.SelectedCamera.MaximumZoomFactor;
-                zoomSlider.Minimum = MyCamera.SelectedCamera.MinimumZoomFactor;
-            }
+            currentZoom = 1f;
+            zoomSlider.Value = currentZoom;
+            isFlashOn = false;
+            isPreProcessEnabled = false;
+            HandleFlash();
+            HandlePreProcess();
+            // Reinciar Zoom y Slider
+            ResetZoom();
         }
         protected override void OnNavigatedFrom(NavigatedFromEventArgs args)
         {
@@ -185,7 +233,7 @@ namespace MauiOcrPluginSample
             if (MyCamera.Width <= 0 || MyCamera.Height <= 0)
                 return;
 
-            if (heigthCamera <= 0) heigthCamera = MyCamera.Height / 2;
+            if (heigthCamera <= 0) heigthCamera = MyCamera.Height / 4;
             if (widthCamera <= 0) widthCamera = MyCamera.Height;
 
             CaptureBorder.HeightRequest = heigthCamera;
@@ -209,9 +257,16 @@ namespace MauiOcrPluginSample
                 {
                     e.Media.Position = 0;
                     //Preprocesar imagen
-                    using var processedStream = PreprocessImageForOcr(e.Media);
-                    //Copiarlo al memorystream
-                    await processedStream.CopyToAsync(tempStream);
+                    if (isPreProcessEnabled)
+                    {
+                        using var processedStream = PreprocessImageForOcr(e.Media);
+                        //Copiarlo al memorystream
+                        await processedStream.CopyToAsync(tempStream);
+                    }
+                    else
+                    {
+                        await e.Media.CopyToAsync(tempStream);
+                    }
                     //Pasar los bytes a una variable externa
                     rawImageBytes = tempStream.ToArray();
                 }
@@ -261,9 +316,6 @@ namespace MauiOcrPluginSample
                 double rectWidth, rectHeight;
                 double rectX, rectY;
 
-                // Factor de ajuste para reducir ligeramente el rectángulo (ej. 0.95 = 5% más pequeño)
-                double scaleAdjustment = .9; // Ajusta este valor según necesidad (0.9 - 0.99)
-
                 if (isNormalOrientation)
                 {
                     // Caso normal: altura = 3/4 del ancho
@@ -272,7 +324,7 @@ namespace MauiOcrPluginSample
 
                     // Rectángulo de recorte: ancho = altura original, alto = mitad del ancho original
                     rectWidth = uiHeight * scaleAdjustment;  // Ajustado para ser más pequeño
-                    rectHeight = (uiWidth / 2) * scaleAdjustment;  // Ajustado para ser más pequeño
+                    rectHeight = (uiWidth / 4) * scaleAdjustment;  // Ajustado para ser más pequeño
 
                     rectX = (uiWidth - rectWidth) / 2;
                     rectY = (uiHeight - rectHeight) / 2;
@@ -284,7 +336,7 @@ namespace MauiOcrPluginSample
                     uiWidth = widthCamera * 3 / 4;
 
                     // Rectángulo de recorte: ancho = mitad de la altura original, alto = ancho original
-                    rectWidth = (uiHeight / 2) * scaleAdjustment;  // Ajustado para ser más pequeño
+                    rectWidth = (uiHeight / 4) * scaleAdjustment;  // Ajustado para ser más pequeño
                     rectHeight = uiWidth * scaleAdjustment;  // Ajustado para ser más pequeño
 
                     rectX = (uiWidth - rectWidth) / 2;
@@ -426,20 +478,20 @@ namespace MauiOcrPluginSample
         }
         public string CleanOdometerReading(string rawText)
         {
-            string cleaned = string.Empty;
+            if (string.IsNullOrEmpty(rawText))
+                return rawText;
 
-            foreach (var replacement in CharacterReplacements)
-            {
-                cleaned = cleaned.Replace(replacement.Key, replacement.Value);
-            }
+            var needsReplacement = CharacterReplacements.Keys.Any(rawText.Contains);
 
-            cleaned = Regex.Replace(rawText, @"[^\d.,]", "");
+            var cleaned = needsReplacement
+                ? CharacterReplacements.Aggregate(rawText, (current, replacement) =>
+                    current.Replace(replacement.Key, replacement.Value))
+                : rawText;
 
-            
-
+            cleaned = Regex.Replace(cleaned, @"[^\d.,]", "");
             cleaned = ProcessDecimalSeparators(cleaned);
 
-            return string.Empty;
+            return cleaned;
         }
 
         private string ProcessDecimalSeparators(string input)
